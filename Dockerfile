@@ -15,5 +15,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "src/check_spark.py" ]
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--allow-root"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--allow-root", "--NotebookApp.token="]
