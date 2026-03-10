@@ -1,0 +1,10 @@
+version: "3.9"
+
+services:
+  spark-app:
+    build: .
+    container_name: pyspark-dev
+    volumes:
+      - .:/app
+    working_dir: /app
+    tty: true
