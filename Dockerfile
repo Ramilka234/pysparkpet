@@ -11,6 +11,9 @@ WORKDIR /app
 
 COPY requirements.txt .
 
+COPY credentials.json /app/credentials.json
+COPY token.json /app/token.json
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .

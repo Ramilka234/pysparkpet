@@ -8,10 +8,12 @@ from typing import List, Dict, Any
 
 from pyspark.sql import DataFrame
 from spark_session import get_spark
+from google_drive_io import upload_file
 
 
 BASE_DATA_PATH_ENV = "DATA_BASE_PATH"
 DEFAULT_BASE_DATA_PATH = "/app/data"
+GOOGLE_DRIVE_FOLDER_ENV = "GOOGLE_DRIVE_FOLDER_ID"
 
 
 def _random_digits(n: int) -> str:
@@ -145,6 +147,8 @@ def generate_raw_events(spark, customers: DataFrame, days: int = 3) -> DataFrame
                     }
                 )
 
+    return spark.createDataFrame(events)
+
 def write_dataset(df: DataFrame, path: str, partition_by: List[str] | None = None) -> None:
     writer = df.write.mode("overwrite")
     if partition_by:
@@ -152,19 +156,33 @@ def write_dataset(df: DataFrame, path: str, partition_by: List[str] | None = Non
     writer.parquet(path)
 
 
+def export_to_drive_as_csv(df: DataFrame, folder_id: str, file_name: str, tmp_dir: str = "/tmp") -> None:
+    """
+    Выгружает DataFrame в локальный CSV и загружает его в указанную папку Google Drive.
+    """
+    os.makedirs(tmp_dir, exist_ok=True)
+    local_path = os.path.join(tmp_dir, file_name)
+
+    pdf = df.toPandas()
+    pdf.to_csv(local_path, index=False)
+
+    upload_file(local_path, folder_id, file_name=file_name)
+
+
 def main() -> None:
     spark = get_spark("generate-data")
 
-    base_path = os.getenv(BASE_DATA_PATH_ENV, DEFAULT_BASE_DATA_PATH)
-    base_path = base_path.rstrip("/")
-
     customers = generate_customers(spark, n_customers=100)
-    write_dataset(customers, f"{base_path}/raw/customers")
-
     raw_events = generate_raw_events(spark, customers, days=3)
-    write_dataset(raw_events, f"{base_path}/raw/events", partition_by=["event_date"])
 
-    print(f"Raw synthetic data generated under base path: {base_path}")
+    drive_folder_id = os.getenv(GOOGLE_DRIVE_FOLDER_ENV)
+    if not drive_folder_id:
+        raise RuntimeError("GOOGLE_DRIVE_FOLDER_ID is not set in environment/.env")
+
+    export_to_drive_as_csv(customers, drive_folder_id, "raw_customers.csv")
+    export_to_drive_as_csv(raw_events, drive_folder_id, "raw_events.csv")
+
+    print(f"Raw synthetic data uploaded to Google Drive folder: {drive_folder_id}")
 
 
 if __name__ == "__main__":

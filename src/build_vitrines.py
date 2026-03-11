@@ -8,8 +8,9 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 from spark_session import get_spark
+from google_drive_io import download_file_by_name
 
-from generate_data import BASE_DATA_PATH_ENV, DEFAULT_BASE_DATA_PATH
+from generate_data import BASE_DATA_PATH_ENV, DEFAULT_BASE_DATA_PATH, GOOGLE_DRIVE_FOLDER_ENV
 
 
 def generate_vitrine_b(spark, customers: DataFrame) -> DataFrame:
@@ -121,9 +122,29 @@ def main() -> None:
 
     base_path = os.getenv(BASE_DATA_PATH_ENV, DEFAULT_BASE_DATA_PATH)
     base_path = base_path.rstrip("/")
+    drive_folder_id = os.getenv(GOOGLE_DRIVE_FOLDER_ENV)
+    if not drive_folder_id:
+        raise RuntimeError("GOOGLE_DRIVE_FOLDER_ID is not set in environment/.env")
 
-    customers = spark.read.parquet(f"{base_path}/raw/customers")
-    vit_a = spark.read.parquet(f"{base_path}/raw/events")
+    tmp_dir = "/tmp"
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    customers_csv = os.path.join(tmp_dir, "raw_customers.csv")
+    events_csv = os.path.join(tmp_dir, "raw_events.csv")
+
+    download_file_by_name(drive_folder_id, "raw_customers.csv", customers_csv)
+    download_file_by_name(drive_folder_id, "raw_events.csv", events_csv)
+
+    customers = (
+        spark.read
+        .option("header", "true")
+        .csv(customers_csv)
+    )
+    vit_a = (
+        spark.read
+        .option("header", "true")
+        .csv(events_csv)
+    )
 
     vit_b = generate_vitrine_b(spark, customers)
     write_vitrine(vit_b, f"{base_path}/vitrine_b")

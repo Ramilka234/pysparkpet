@@ -1,5 +1,6 @@
 pyspark==3.5.1
 pyarrow==16.1.0
+pandas>=1.0.5
 google-api-python-client==2.169.0
 google-auth==2.40.2
 google-auth-oauthlib==1.2.2
