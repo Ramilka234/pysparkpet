@@ -4,28 +4,39 @@ import io
 import os
 from typing import Optional
 
+from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import]
+from google.oauth2.credentials import Credentials  # type: ignore[import]
+from google.auth.transport.requests import Request  # type: ignore[import]
 from googleapiclient.discovery import build  # type: ignore[import]
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload  # type: ignore[import]
-from google.oauth2 import service_account  # type: ignore[import]
-import google.auth  # type: ignore[import]
 
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
+# Пути можно переопределить через переменные окружения
+CREDENTIALS_FILE = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS_FILE", "credentials.json")
+TOKEN_FILE = os.getenv("GOOGLE_OAUTH_TOKEN_FILE", "token.json")
+
 
 def get_drive_service():
-    """
-    Создаёт клиент Google Drive.
+    creds: Optional[Credentials] = None
 
-    Способы аутентификации:
-    - GOOGLE_SERVICE_ACCOUNT_FILE — путь к service account JSON.
-    - либо application default credentials (GOOGLE_APPLICATION_CREDENTIALS и т.п.).
-    """
-    sa_path = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
-    if sa_path:
-        creds = service_account.Credentials.from_service_account_file(sa_path, scopes=SCOPES)
-    else:
-        creds, _ = google.auth.default(scopes=SCOPES)
+    if os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                CREDENTIALS_FILE,
+                SCOPES,
+            )
+            creds = flow.run_local_server(port=0)
+
+        # сохраняем токен
+        with open(TOKEN_FILE, "w", encoding="utf-8") as token:
+            token.write(creds.to_json())
 
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
@@ -45,7 +56,7 @@ def upload_file(local_path: str, folder_id: str, file_name: Optional[str] = None
 
     created = (
         service.files()
-        .create(body=file_metadata, media_body=media, fields="id")
+        .create(body=file_metadata, media_body=media, fields="id", supportsAllDrives=True)
         .execute()
     )
     return created["id"]
