@@ -7,13 +7,13 @@ from typing import Optional
 from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import]
 from google.oauth2.credentials import Credentials  # type: ignore[import]
 from google.auth.transport.requests import Request  # type: ignore[import]
+from google.auth.exceptions import RefreshError  # type: ignore[import]
 from googleapiclient.discovery import build  # type: ignore[import]
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload  # type: ignore[import]
 
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
-# Пути можно переопределить через переменные окружения
 CREDENTIALS_FILE = os.getenv("GOOGLE_OAUTH_CLIENT_SECRETS_FILE", "credentials.json")
 TOKEN_FILE = os.getenv("GOOGLE_OAUTH_TOKEN_FILE", "token.json")
 
@@ -26,7 +26,13 @@ def get_drive_service():
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except RefreshError as e:
+                raise RuntimeError(
+                    "OAuth token refresh failed (invalid_grant). "
+                    "Delete token.json and re-auth: run `python src/auth_google_drive.py` on the host."
+                ) from e
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
                 CREDENTIALS_FILE,
@@ -34,7 +40,6 @@ def get_drive_service():
             )
             creds = flow.run_local_server(port=0)
 
-        # сохраняем токен
         with open(TOKEN_FILE, "w", encoding="utf-8") as token:
             token.write(creds.to_json())
 
@@ -63,10 +68,6 @@ def upload_file(local_path: str, folder_id: str, file_name: Optional[str] = None
 
 
 def download_file_by_name(folder_id: str, file_name: str, local_path: str) -> None:
-    """
-    Находит файл по имени в указанной папке и скачивает его в local_path.
-    Если файл не найден — бросает исключение.
-    """
     service = get_drive_service()
 
     query = (
