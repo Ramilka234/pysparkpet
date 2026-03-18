@@ -37,9 +37,6 @@ def _hash_sha256(s: str) -> str:
 
 
 def generate_customers(spark, n_customers: int = 100) -> DataFrame:
-    """
-    Базовая таблица "клиентов", от которой будут строиться витрины A–G.
-    """
     rows: List[Dict[str, Any]] = []
     domains = ["example.com", "mail.io", "test.org"]
 
